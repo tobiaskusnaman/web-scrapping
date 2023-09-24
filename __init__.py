@@ -1,36 +1,47 @@
 import requests
 from bs4 import BeautifulSoup
-
-# response = requests.get('https://oxylabs.io/')
-# print(response.text)
-
-# form_data = {'key1': 'value1', 'key2': 'value2'}
-# response = requests.post('https://oxylabs.io/', data=form_data)
-# print(response.text)
+import json
+import pandas as pd
 
 url = 'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs/?page=1'
 response = requests.get(url)
 
 soup = BeautifulSoup(response.text, 'html.parser')
-# print(soup.title)
 
-event_sections = soup.find_all('section', class_="discover-horizontal-event-card")
+event_list = soup.find_all('script', type="application/ld+json")
 
-for i, event in enumerate(event_sections):
+result_df = pd.DataFrame()
+
+for i, event_raw in enumerate(event_list):
+    event = json.loads(event_raw.text.strip())
+
+    # for debugging json
+    # json_string = json.dumps(event, indent=2)
+    # print(json_string)
+
+    df = pd.json_normalize(event)
+
+    result_df = result_df._append(df, ignore_index=True)
     
-    print('INDEX =============== ', i)
 
-    title = event.find('h2').text.strip()
-    link = event.find('a', class_='event-card-link')['href']
+result_df.to_excel(f'data/result.xlsx', index=False)
+
+# event_sections = soup.find_all('section', class_="discover-horizontal-event-card")
+
+# for i, event in enumerate(event_sections):
+    
+#     print('INDEX =============== ', i)
+
+#     title = event.find('h2').text.strip()
+#     link = event.find('a', class_='event-card-link')['href']
     
 
-    p_classes = event.find_all('p')
+#     p_classes = event.find_all('p')
 
-    date = p_classes[0].text.strip()
-    organizer = p_classes[1].text.strip()
+#     date = p_classes[0].text.strip()
+#     organizer = p_classes[1].text.strip()
 
-
-    print('title', title)
-    print('link', link)
-    print('date', date)
-    print('organizer', organizer)
+#     print('title', title)
+#     print('link', link)
+#     print('date', date)
+#     print('organizer', organizer)
