@@ -1,61 +1,89 @@
-import requests
-from bs4 import BeautifulSoup
-import json
-import pandas as pd
 import re
+import requests
+import json
+import logging
+
+import pandas as pd
+from bs4 import BeautifulSoup
+
+logging.basicConfig(level=logging.INFO)
+
+PAGE_URL = 'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs'
+logging.info(f'Web scrabbing this page url {PAGE_URL}')
 
 current_page = 1
-url = 'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs'
-response = requests.get(url)
+response = requests.get(PAGE_URL)
 
 soup = BeautifulSoup(response.text, 'html.parser')
 result_df = pd.DataFrame()
 
-def get_last_page(soup):
-    # get footer
-    footer = soup.find('footer')
-    soup_footer = BeautifulSoup(footer.text, 'html.parser')
+def get_last_page(soup: BeautifulSoup) -> str:
+    try:
+        # get footer
+        footer = soup.find('footer')
+        soup_footer = BeautifulSoup(footer.text, 'html.parser')
 
-    # Use regex to extract the number before 'Next' and after '...'
-    result = re.search(r'\.\.\.(\d+)Next', soup_footer.text)
+        # Use regex to extract the number before 'Next' and after '...'
+        result = re.search(r'\.\.\.(\d+)Next', soup_footer.text)
 
-    # Get the number as an integer
-    last_pagination = int(result.group(1))
+        # Get the number as an integer
+        last_pagination = int(result.group(1))
 
-    # Return the extracted number
-    return last_pagination
+        # Return the extracted number
+        return last_pagination
+        
 
-def get_event(page: int = 1):
-    global result_df
-    url = f'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs/?page={page}]'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    # events fine
+    except Exception as e:
+        logging.error(f'An error occurred while retriving last pagination: {e}')
+        raise
 
-    event_list = soup.find_all('script', type="application/ld+json")
-    for i, event_raw in enumerate(event_list):
-        event = json.loads(event_raw.text.strip())
+    finally:
+        logging.info(f'Last page of this URL is {last_pagination}')
+        
 
-        # for debugging json
-        # json_string = json.dumps(event, indent=2)
-        # print(json_string)
+def get_event(page: int = 1) -> BeautifulSoup:
+    try:
+        global result_df
+        url = f'{PAGE_URL}/?page={page}]'
+        logging.info(f'Retrieving data from page {page}')
 
-        df = pd.json_normalize(event)
-        result_df = result_df._append(df, ignore_index=True)
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        event_list = soup.find_all('script', type="application/ld+json")
+        for i, event_raw in enumerate(event_list):
+            event = json.loads(event_raw.text.strip())
+
+            # for debugging json
+            # json_string = json.dumps(event, indent=2)
+            # print(json_string)
+
+            df = pd.json_normalize(event)
+            result_df = result_df._append(df, ignore_index=True)
+        
+        return soup
     
-    return soup
+    except Exception as e:
+        logging.error(f'An error occurred while retriving data: {e}')
+        raise
 
+def save_to_excel(df, file_path):
+    try:
+        df.to_excel(file_path, index=False)
+    except PermissionError as e:
+        logging.error(f'Permission denied while saving file to {file_path}: {e}')
+        raise
+    except Exception as e:
+        logging.error(f'An error occurred while saving file to {file_path}: {e}')
+        raise
+    finally:
+        logging.info(f'Saved file to {file_path}')
 
 first_page_html = get_event()
 last_page = get_last_page(first_page_html)
-print(f'last_page, {last_page}')
-
 
 while current_page < last_page:
     current_page += 1
-
-    # continue with page number 2
-    print(current_page)
     get_event(current_page)
 
-result_df.to_excel(f'data/result.xlsx', index=False)
+save_to_excel(result_df, file_path='data/result.xlsx')
