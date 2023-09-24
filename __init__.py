@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO)
 
-PAGE_URL = 'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs'
+PAGE_URL = 'https://www.eventbrite.com/d/germany--berlin/free--events/job-fairs/?lang=de%2Cen'
 logging.info(f'Web scrabbing this page url {PAGE_URL}')
 
 current_page = 1
@@ -18,6 +18,9 @@ soup = BeautifulSoup(response.text, 'html.parser')
 result_df = pd.DataFrame()
 
 def get_last_page(soup: BeautifulSoup) -> str:
+    # set initial pagination
+    last_pagination = 1
+
     try:
         # get footer
         footer = soup.find('footer')
@@ -26,13 +29,13 @@ def get_last_page(soup: BeautifulSoup) -> str:
         # Use regex to extract the number before 'Next' and after '...'
         result = re.search(r'\.\.\.(\d+)Next', soup_footer.text)
 
-        # Get the number as an integer
-        last_pagination = int(result.group(1))
-
         # Return the extracted number
+        if result:
+            # Get the number as an integer
+            last_pagination = int(result.group(1))
+        
         return last_pagination
         
-
     except Exception as e:
         logging.error(f'An error occurred while retriving last pagination: {e}')
         raise
@@ -44,7 +47,7 @@ def get_last_page(soup: BeautifulSoup) -> str:
 def get_event(page: int = 1) -> BeautifulSoup:
     try:
         global result_df
-        url = f'{PAGE_URL}/?page={page}]'
+        url = f'{PAGE_URL}&page={page}]'
         logging.info(f'Retrieving data from page {page}')
 
         response = requests.get(url)
